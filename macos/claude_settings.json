@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(stat:*)",
+      "Bash(file:*)",
+      "Bash(pwd)",
+      "Bash(cat:*)",
+      "Bash(sed -n:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(npm list:*)",
+      "Bash(node -v)",
+      "Bash(python -V)",
+      "Bash(source:*)",
+      "Bash(pytest:*)",
+      "Bash(.venv/bin/python -m pytest:*)",
+      "Read(//tmp/**)",
+      "Edit(//tmp/**)",
+      "Write(//tmp/**)",
+      "Read(*)"
+    ]
+  }
+}

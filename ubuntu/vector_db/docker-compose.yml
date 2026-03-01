@@ -1,0 +1,27 @@
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    restart: unless-stopped
+    ports:
+      - "${CHROMA_PORT:-9000}:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+      - CHROMA_SERVER_AUTHN_PROVIDER=${CHROMA_SERVER_AUTHN_PROVIDER}
+      - CHROMA_SERVER_AUTHN_CREDENTIALS=${CHROMA_SERVER_AUTHN_CREDENTIALS}
+      - CHROMA_AUTH_TOKEN_TRANSPORT_HEADER=${CHROMA_AUTH_TOKEN_TRANSPORT_HEADER}
+    volumes:
+      - ${CHROMA_DATA_PATH}:/chroma/chroma
+
+  text-embeddings-inference:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
+    container_name: text-embeddings-inference
+    restart: unless-stopped
+    ports:
+      - "${TEI_PORT:-8090}:80"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    volumes:
+      - ${TEI_MODEL_CACHE_PATH}:/data
+    command: --model-id ${TEI_MODEL_ID:-BAAI/bge-m3} --pooling mean
