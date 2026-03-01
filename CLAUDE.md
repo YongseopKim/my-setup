@@ -1,58 +1,16 @@
 ## ⛔ BASH COMMANDS — ONE COMMAND PER BASH CALL (ZERO EXCEPTIONS)
 
-This is the #1 rule. Violating this rule triggers manual permission approval, which is burdensome to the user.
+**ONE Bash tool call = ONE shell command. No exceptions.** This is enforced by a PreToolUse hook that blocks violations.
 
-**ONE Bash tool call = ONE shell command. No exceptions.**
-
-### What counts as a violation
-
-A "compound command" is ANY Bash call containing more than one command, regardless of separator:
-
-| Separator | Example | Violation? |
-|-----------|---------|------------|
-| `&&` | `cd /path && pytest` | YES |
-| `\|\|` | `cmd1 \|\| cmd2` | YES |
-| `\|` (pipe) | `pytest 2>&1 \| tail -20` | YES |
-| `;` | `cd /path; pytest` | YES |
-| **Newline** | `cd /path`↵`pytest` | **YES** — same Bash call = compound |
-
-### Forbidden patterns
-
-```bash
-# FORBIDDEN — && chaining
-cd /path/to/project && pytest tests/ -v > /tmp/out.out 2>&1
-
-# FORBIDDEN — newline separation (STILL compound in one Bash call!)
-cd /path/to/project
-PYTHONPATH=src pytest tests/ -v > /tmp/out.out 2>&1
-
-# FORBIDDEN — pipe
-pytest tests/ -v 2>&1 | tail -20
-
-# FORBIDDEN — semicolon
-cd /path; pytest tests/
-```
-
-### Correct patterns
-
-```bash
-# Bash call 1:
-cd /path/to/project
-
-# Bash call 2 (separate tool invocation):
-PYTHONPATH=src pytest tests/ -v > /tmp/out.out 2>&1
-
-# Bash call 3 (separate tool invocation):
-tail -20 /tmp/out.out
-```
-
-### Pre-check (MANDATORY before every Bash call)
-
-Before executing, verify the command is a **single line with no** `&&`, `||`, `|`, or `;`. If it has multiple lines or any of these operators, split into separate Bash tool calls.
+A "compound command" is ANY Bash call containing `&&`, `||`, `|`, `;`, or multiple lines. Before every Bash call, verify the command is a single line with none of these operators. If it fails, split into separate Bash tool calls.
 
 ### Subagent rule
 
-This rule applies to ALL subagents. When dispatching Task/Agent, explicitly instruct: **"Execute exactly ONE shell command per Bash tool call. Never combine commands with &&, ||, |, ;, or newlines."**
+This rule applies to ALL subagents. When dispatching Task/Agent, explicitly instruct ALL of the following:
+1. **"Execute exactly ONE shell command per Bash tool call. Never combine commands with &&, ||, |, ;, or newlines."**
+2. **"NEVER use absolute paths to invoke executables or as command arguments. Always `cd` into the project directory first (separate Bash call), then use relative commands like `pip install`, `pytest`, `python`."**
+3. **"NEVER call .venv/bin/* with absolute paths. Instead: (1) cd to project dir, (2) source .venv/bin/activate, (3) run command — each as a separate Bash call."**
+4. **"Use relative paths in arguments: `pip install -e '.[dev]'` NOT `pip install -e '/Users/.../project[dev]'`"**
 
 ---
 
@@ -78,22 +36,19 @@ Include the following in `.gitignore` at project creation:
 
 ## Session Start
 
-1. For Python projects, run `source .venv/bin/activate` as a standalone Bash call. All subsequent commands run in the activated environment.
-2. Read `~/.claude/projects/{project_id}/memory/MEMORY.md` to restore decisions and lessons from previous sessions. If it does not exist, create it.
+1. Before running the first shell command in a Python project, run `source .venv/bin/activate` as a standalone Bash call. All subsequent commands run in the activated environment.
+2. On the first user message, read `~/.claude/projects/{project_id}/memory/MEMORY.md` to restore decisions and lessons from previous sessions. If it does not exist, create it.
 
 ---
 
 ## Development Workflow
 
-Follow this workflow for all feature/bugfix work:
+Follow this workflow for non-trivial feature/bugfix work (multi-file changes or new functionality). For small, isolated changes, steps 2-3 (Design/Plan) may be skipped.
 
 1. **Setup:** Use `.venv` for Python dependencies. Use `git worktree` to isolate work on a new branch. Base work on the original repo's `.venv`.
 2. **Design:** Design → Validate design → If invalid, redesign → Design complete
-3. **Plan:** Create implementation plan → Validate plan → If invalid, replan → Plan complete
-4. **Implement (TDD per plan task):**
-   - Write failing test (RED)
-   - Implement until test passes (GREEN)
-   - Verify test + implementation correctness → If invalid, restart from test writing
+3. **Plan:** Use `writing-plans` skill to create implementation plan — maximize parallelism with bottleneck checkpoints for testing → Validate plan → If invalid, replan → Plan complete
+4. **Implement:** Use `executing-plans` skill to execute plan tasks with TDD (RED → GREEN → Verify). Run `code-review` after each plan step.
 5. **Finalize:** All plan tasks complete → Final test suite + ruff/lint must pass
 6. **Merge:** Merge branch to main → Clean up worktree/branch → Update project CLAUDE.md and docs
 
@@ -110,8 +65,14 @@ Follow this workflow for all feature/bugfix work:
 
 ### Skill Usage Guidelines
 - **Vague / exploratory requests** (not a specific bug fix or feature): Use the `brainstorming` skill.
-- **Large feature work**: Use `writing-plans` to create the plan, then `executing-plans` to execute it.
-- **After completing each plan step**: Run `code-review`.
+- **Large feature work**: Follow the Development Workflow above.
+
+### Plan Parallelism
+- When writing implementation-level plans, break down tasks to **maximize parallel execution**.
+- Minimize sequential dependencies to enable concurrent subagent processing.
+- Intentionally place **bottleneck checkpoints** between parallel groups — run tests at these points to verify intermediate results before proceeding to the next phase.
+- Structure plans as: `[Parallel Group A: task1, task2, task3] → Checkpoint: run tests → [Parallel Group B: task4, task5] → Checkpoint: run tests`
+- When dispatching subagents, use the `dispatching-parallel-agents` skill for concurrent execution within each group.
 
 ### Bug Fixing
 - Always reproduce the bug with a failing test FIRST, then fix it.
@@ -120,7 +81,7 @@ Follow this workflow for all feature/bugfix work:
 
 ## Development Completion
 
-When the conversation/session is ending (not per-feature, but per-session), perform the following in order:
+When the user signals the session is ending (e.g., "done", "wrap up", "that's all"), perform the following in order:
 
 1. **Skill recommendation:** Based on what was covered in this conversation, determine if there are reusable custom skills worth creating for the current project. If so, recommend them to the user.
 2. **Memory update:** Check if `~/.claude/projects/{project_id}/memory/MEMORY.md` needs updates with lessons and decisions from this session.

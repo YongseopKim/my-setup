@@ -1,0 +1,109 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(ls:*)",
+      "Bash(stat:*)",
+      "Bash(file:*)",
+      "Bash(pwd)",
+      "Bash(cat:*)",
+      "Bash(sed -n:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(npm list:*)",
+      "Bash(node -v)",
+      "Bash(source:*)",
+      "Bash(*/python -V)",
+      "Bash(*/python3 -V)",
+      "Bash(*/pytest:*)",
+      "Bash(*/pip install:*)",
+      "Bash(*/pip list:*)",
+      "Bash(*/python -m:*)",
+      "Bash(*/python3 -m:*)",
+      "Bash(*/pip install:*)",
+      "Bash(*/.venv/bin/python:*)",
+      "Bash(*/.venv/bin/python3:*)",
+      "Bash(*/.venv/bin/pip:*)",
+      "Bash(PYTHONPATH=*)",
+      "Bash(uv:*)",
+      "Read(//tmp/**)",
+      "Edit(//tmp/**)",
+      "Write(//tmp/**)",
+      "Read(*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "Bash",
+      "hooks": [{
+        "type": "command",
+        "command": "python3 /Users/dragon/.claude/hooks/validate-bash-paths.py",
+        "timeout": 10
+      }]
+    }],
+    "Stop": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "node /Users/dragon/github/Claude-Code-Remote/claude-hook-notify.js completed",
+        "timeout": 30
+      }]
+    }],
+    "PermissionRequest": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "node /Users/dragon/github/Claude-Code-Remote/claude-hook-notify.js permission",
+        "timeout": 30
+      }]
+    }]
+  },
+  "enabledPlugins": {
+    "context7@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "github@claude-plugins-official": false,
+    "feature-dev@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "ralph-loop@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "serena@claude-plugins-official": false,
+    "supabase@claude-plugins-official": false,
+    "pyright-lsp@claude-plugins-official": true,
+    "agent-sdk-dev@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "greptile@claude-plugins-official": false,
+    "claude-code-setup@claude-plugins-official": true,
+    "learning-output-style@claude-plugins-official": true,
+    "sentry@claude-plugins-official": false,
+    "gopls-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "swift-lsp@claude-plugins-official": true,
+    "playground@claude-plugins-official": true,
+    "coderabbit@claude-plugins-official": true,
+    "agent-architecture@context-engineering-marketplace": true,
+    "agent-development@context-engineering-marketplace": true,
+    "agent-evaluation@context-engineering-marketplace": true,
+    "context-engineering-fundamentals@context-engineering-marketplace": true,
+    "episodic-memory@superpowers-marketplace": true,
+    "superpowers@superpowers-marketplace": true,
+    "superpowers-developing-for-claude-code@superpowers-marketplace": true,
+    "frontend-design@claude-plugins-official": true,
+    "security-guidance@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "cognitive-architecture@context-engineering-marketplace": true
+  },
+  "language": "Korean",
+  "alwaysThinkingEnabled": true
+}
