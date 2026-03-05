@@ -17,6 +17,7 @@
 | 서버 (Ubuntu 22.04) | 10.0.0.1 |
 | 클라이언트 1 — 모바일 | 10.0.0.2 |
 | 클라이언트 2 — 노트북 | 10.0.0.3 |
+| 클라이언트 3 — M1 맥북 | 10.0.0.4 |
 
 ---
 
@@ -205,6 +206,10 @@ sudo cat /etc/wireguard/client1.conf | qrencode -t ansiutf8
 
 별도 문서 참조: [wireguard-client-ubuntu2404.md](wireguard-client-ubuntu2404.md)
 
+### M1 맥북 (macOS)
+
+별도 문서 참조: [wireguard-client-macos.md](../macos/wireguard-client-macos.md)
+
 ## 10단계: 연결 테스트
 
 클라이언트에서:
@@ -252,7 +257,9 @@ crontab -l
 ├── client1.key     # 클라이언트 1 private key (chmod 600)
 ├── client1.pub     # 클라이언트 1 public key
 ├── client2.key     # 클라이언트 2 private key (chmod 600)
-└── client2.pub     # 클라이언트 2 public key
+├── client2.pub     # 클라이언트 2 public key
+├── client3.key     # 클라이언트 3 private key (chmod 600)
+└── client3.pub     # 클라이언트 3 public key
 ```
 
 ## 클라이언트 추가 방법
