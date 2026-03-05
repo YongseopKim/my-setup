@@ -3,6 +3,9 @@ services:
     image: elasticsearch:8.17.3
     container_name: elasticsearch
     restart: unless-stopped
+    command: >
+      bash -c "elasticsearch-plugin list | grep -q analysis-nori || elasticsearch-plugin install --batch analysis-nori;
+      /usr/local/bin/docker-entrypoint.sh"
     ports:
       - "${ES_PORT:-9200}:9200"
     environment:
