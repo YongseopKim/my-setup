@@ -86,6 +86,19 @@ sudo wg-quick down wg0
 sudo systemctl enable wg-quick@wg0
 ```
 
+### 5. (선택) systemd가 아닌 NetworkManager에게 맡겨서 GUI에도 자연스럽게 나오게 하기
+
+```
+# systemd 서비스 비활성화
+sudo systemctl disable --now wg-quick@wg0
+
+# NetworkManager로 WireGuard 설정 임포트
+sudo nmcli connection import type wireguard file /etc/wireguard/wg0.conf
+
+# 자동 연결 설정
+sudo nmcli connection modify wg0 connection.autoconnect yes
+```
+
 ---
 
 ## 태블릿 USB 테더링 관련 참고
