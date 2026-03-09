@@ -5,13 +5,8 @@ input=$(cat)
 cwd=$(echo "$input" | jq -r '.cwd // .workspace.current_dir // ""')
 model=$(echo "$input" | jq -r '.model.display_name // ""')
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
-cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
-duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // empty')
 
 # ── ANSI bright colors (using $'...' for real escape bytes) ──
-BOLD=$'\e[1m'
-BW=$'\e[97m'       # bright white
-BC=$'\e[96m'        # bright cyan
 BG=$'\e[92m'        # bright green
 BY=$'\e[93m'        # bright yellow
 BR=$'\e[91m'        # bright red
@@ -20,14 +15,27 @@ BB=$'\e[94m'        # bright blue
 DIM=$'\e[2m'
 RST=$'\e[0m'
 
-# ── Shorten home directory to ~ ──
-home_dir="$HOME"
-short_cwd="${cwd/#$home_dir/\~}"
-
-# ── Hostname and IP ──
-host=$(hostname -s 2>/dev/null || echo "unknown")
-ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-[ -z "$ip" ] && ip="127.0.0.1"
+# ── Fish-style path shortening ──
+# ~/github/YongseopKim/pkb/src/core/utils → ~/g/Y/p/s/c/utils
+fish_shorten_path() {
+  local p="${1/#$HOME/\~}"
+  local IFS='/'
+  read -ra parts <<< "$p"
+  local last_idx=$(( ${#parts[@]} - 1 ))
+  local result=""
+  for i in "${!parts[@]}"; do
+    local seg="${parts[$i]}"
+    if [ "$i" -eq 0 ]; then
+      result="$seg"
+    elif [ "$i" -eq "$last_idx" ]; then
+      result="$result/$seg"
+    else
+      result="$result/${seg:0:1}"
+    fi
+  done
+  echo "$result"
+}
+short_cwd=$(fish_shorten_path "$cwd")
 
 # ── Git branch and status ──
 git_info=""
@@ -39,6 +47,15 @@ if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
       dirty="✱"
     else
       dirty=""
+    fi
+    # Shorten branch: strip common prefixes, cap at 25 chars
+    branch="${branch#feature/}"
+    branch="${branch#bugfix/}"
+    branch="${branch#hotfix/}"
+    branch="${branch#chore/}"
+    branch="${branch#fix/}"
+    if [ ${#branch} -gt 25 ]; then
+      branch="${branch:0:24}…"
     fi
     git_info="${DIM}│${RST} ${BM}⎇ ${branch}${dirty}${RST} "
   fi
@@ -69,27 +86,11 @@ if [ -n "$used_pct" ]; then
   ctx_part="${DIM}│${RST} ${ctx_color}${ctx_icon} ${bar} ${used_int}%${RST} "
 fi
 
-# ── Cost ──
-cost_part=""
-if [ -n "$cost" ] && [ "$cost" != "0" ]; then
-  cost_fmt=$(printf "%.4f" "$cost")
-  cost_part="${DIM}│${RST} ${BY}💰 \$${cost_fmt}${RST} "
-fi
-
-# ── Duration ──
-dur_part=""
-if [ -n "$duration_ms" ] && [ "$duration_ms" != "0" ]; then
-  total_sec=$((duration_ms / 1000))
-  mins=$((total_sec / 60))
-  secs=$((total_sec % 60))
-  dur_part="${DIM}│${RST} ${BC}⏱ ${mins}m${secs}s${RST} "
-fi
-
 # ── Model ──
 model_part=""
 if [ -n "$model" ]; then
-  model_part="${DIM}│${RST} ${BB}⚡ ${model}${RST}"
+  model_part="${DIM}│${RST} ${BB}⚡ ${model}${RST} ${DIM}│${RST}"
 fi
 
 # ── Assemble ──
-printf "%s" "${BW}${BOLD}🖥 ${USER}${RST}${DIM}@${RST}${BC}${host}${RST}${DIM}(${ip})${RST} ${BG}📂 ${short_cwd}${RST} ${git_info}${ctx_part}${cost_part}${dur_part}${model_part}"
+printf "%s" "${BG}📂 ${short_cwd}${RST} ${git_info}${ctx_part}${model_part}"
