@@ -48,9 +48,10 @@ Follow this workflow for non-trivial feature/bugfix work (multi-file changes or 
 1. **Setup:** Use `.venv` for Python dependencies. Use `git worktree` to isolate work on a new branch. Base work on the original repo's `.venv`.
 2. **Design:** Design → Validate design → If invalid, redesign → Design complete
 3. **Plan:** Use `writing-plans` skill to create implementation plan — maximize parallelism with bottleneck checkpoints for testing → Validate plan → If invalid, replan → Plan complete
-4. **Implement:** Use `executing-plans` skill to execute plan tasks with TDD (RED → GREEN → Verify). Run `code-review` after each plan step.
-5. **Finalize:** All plan tasks complete → Final test suite + ruff/lint must pass
-6. **Merge:** Merge branch to main → Clean up worktree/branch → Update project CLAUDE.md and docs
+4. **Implement:** Before each task, analyze whether the change could cause **side effects** on other modules or features. Use `executing-plans` skill to execute plan tasks with TDD (RED → GREEN → Verify). Run `code-review` after each plan step. **Commit per task** — every task must produce its own commit.
+5. **Review:** After all tasks are complete, run `code-review` on the full set of changes.
+6. **Finalize:** Final test suite + ruff/lint must pass
+7. **Merge:** Merge branch to main → Clean up worktree/branch → Update project CLAUDE.md and docs
 
 ---
 
@@ -71,8 +72,20 @@ Follow this workflow for non-trivial feature/bugfix work (multi-file changes or 
 - When writing implementation-level plans, break down tasks to **maximize parallel execution**.
 - Minimize sequential dependencies to enable concurrent subagent processing.
 - Intentionally place **bottleneck checkpoints** between parallel groups — run tests at these points to verify intermediate results before proceeding to the next phase.
-- Structure plans as: `[Parallel Group A: task1, task2, task3] → Checkpoint: run tests → [Parallel Group B: task4, task5] → Checkpoint: run tests`
+- **Checkpoint merge rule:** At each checkpoint, merge all task commits within that group using a **merge commit** (no fast-forward). Verify that every task's commit is included in the merge before proceeding to the next phase.
+- Structure plans as: `[Parallel Group A: task1, task2, task3] → Checkpoint: merge + check missing commits + code review + run tests → [Parallel Group B: task4, task5] → Checkpoint: merge + check missing commits + code review + run tests`
 - When dispatching subagents, use the `dispatching-parallel-agents` skill for concurrent execution within each group.
+
+### Testing Practices
+
+#### Mock 사용 시 주의사항
+- Mock/stub이 실제 동작과 괴리를 만들 수 있음을 항상 인지할 것. 특히 자동 타입 변환, 기본값 주입, 예외 발생 조건 등에서 **Mock은 통과하지만 프로덕션에서 실패하는 케이스**를 경계할 것.
+- Mock 대상의 실제 시그니처와 반환값을 확인한 뒤 Mock을 작성할 것.
+
+#### 병렬 테스트 실행
+- 리그레션 테스트, 빌드 브레이크 확인, 테스트 베이스라인 체크 등 **전체 테스트 실행** 시에는 병렬 실행을 기본으로 한다.
+- 상태 공유, DB 의존성, 파일 I/O 경합 등 **병렬 실행에서 문제될 가능성이 있는 테스트는 제외**한다.
+- 병렬 실행에서 실패한 테스트에 한해 **순차 재실행**하여 진짜 실패인지 확인한다.
 
 ### Bug Fixing
 - Always reproduce the bug with a failing test FIRST, then fix it.
