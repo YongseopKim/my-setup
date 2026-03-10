@@ -14,6 +14,31 @@ This rule applies to ALL subagents. When dispatching Task/Agent, explicitly inst
 
 ---
 
+## ⛔ WORKTREE — NEVER WORK ON MAIN DIRECTLY
+
+**By default, all code changes are done in a git worktree. NEVER modify code directly on the main branch.**
+
+Use the `using-git-worktrees` skill to create and manage worktrees.
+
+### Exceptions (work directly on main)
+
+The following do NOT require a worktree:
+- Editing only config/memory files (CLAUDE.md, MEMORY.md)
+- Simple documentation changes (README, comments)
+- Meta files only (.gitignore, etc.)
+- Infrastructure config only (Docker compose, etc.)
+
+If the task does not match any exception above, create a worktree.
+
+### Worktree usage rules
+- When running commands in a worktree, **always `cd` into the worktree directory first**, then use relative paths. Never append the worktree path to commands (breaks existing ALLOW patterns).
+- Base work on the original repo's `.venv`.
+
+### Subagent rule
+When dispatching subagents, explicitly pass the worktree path and instruct them to **"work only inside the given worktree directory"**.
+
+---
+
 ## Project Setup
 
 Consider the following when setting up a new project:
@@ -30,25 +55,30 @@ Include the following in `.gitignore` at project creation:
 - For Python projects: `.venv/`
 
 ### Project Memory Initialization
-- Create `~/.claude/projects/{project_id}/memory/MEMORY.md` to initialize per-project memory.
+- Create the project's auto memory `MEMORY.md` to initialize per-project memory.
 
 ---
 
 ## Session Start
 
-1. Before running the first shell command in a Python project, run `source .venv/bin/activate` as a standalone Bash call. All subsequent commands run in the activated environment.
-2. On the first user message, read `~/.claude/projects/{project_id}/memory/MEMORY.md` to restore decisions and lessons from previous sessions. If it does not exist, create it.
+1. If `.venv/` exists in the project root, run `source .venv/bin/activate` as a standalone Bash call before running the first shell command. All subsequent commands run in the activated environment.
+2. On the first user message, read the project's auto memory `MEMORY.md` to restore decisions and lessons from previous sessions. If it does not exist, create it.
+3. Upon receiving a work request, run `git branch --show-current` before modifying any code. If on main and the task does not match a Worktree exception (see above), create a worktree first using the `using-git-worktrees` skill.
 
 ---
 
 ## Development Workflow
 
-Follow this workflow for non-trivial feature/bugfix work (multi-file changes or new functionality). For small, isolated changes, steps 2-3 (Design/Plan) may be skipped.
+When a worktree is created, follow this workflow. For small, isolated changes, steps 2-3 (Design/Plan) may be skipped.
 
-1. **Setup:** Use `.venv` for Python dependencies. Use `git worktree` to isolate work on a new branch. Base work on the original repo's `.venv`.
+1. **Setup:** Use `.venv` for Python dependencies. Create a work branch per the Worktree rules (see above).
 2. **Design:** Design → Validate design → If invalid, redesign → Design complete
 3. **Plan:** Use `writing-plans` skill to create implementation plan — maximize parallelism with bottleneck checkpoints for testing → Validate plan → If invalid, replan → Plan complete
-4. **Implement:** Before each task, analyze whether the change could cause **side effects** on other modules or features. Use `executing-plans` skill to execute plan tasks with TDD (RED → GREEN → Verify). Run `code-review` after each plan step. **Commit per task** — every task must produce its own commit.
+4. **Implement:**
+   - Before each task, analyze whether the change could cause **side effects** on other modules or features.
+   - Use `executing-plans` skill to execute plan tasks with TDD (RED → GREEN → Verify).
+   - Run `code-review` after each plan step.
+   - **Commit per task** — every task must produce its own commit.
 5. **Review:** After all tasks are complete, run `code-review` on the full set of changes.
 6. **Finalize:** Final test suite + ruff/lint must pass
 7. **Merge:** Merge branch to main → Clean up worktree/branch → Update project CLAUDE.md and docs
@@ -57,15 +87,12 @@ Follow this workflow for non-trivial feature/bugfix work (multi-file changes or 
 
 ## Development Practices
 
-### Worktree Path Handling
-- When working in a worktree, appending the worktree path to commands forces re-approval of already-ALLOWed commands.
-- **Always `cd` into the worktree directory first**, then run commands with relative paths so that existing permission patterns remain in effect.
-
 ### Memory Management
 - When encountering mistakes likely to recur, important architectural decisions, or troubleshooting lessons, update `MEMORY.md` immediately.
 
 ### Skill Usage Guidelines
 - **Vague / exploratory requests** (not a specific bug fix or feature): Use the `brainstorming` skill.
+- **Small / focused changes** (single-file bug fix, minor addition): Apply worktree + TDD directly, skip Design/Plan.
 - **Large feature work**: Follow the Development Workflow above.
 
 ### Plan Parallelism
@@ -78,14 +105,14 @@ Follow this workflow for non-trivial feature/bugfix work (multi-file changes or 
 
 ### Testing Practices
 
-#### Mock 사용 시 주의사항
-- Mock/stub이 실제 동작과 괴리를 만들 수 있음을 항상 인지할 것. 특히 자동 타입 변환, 기본값 주입, 예외 발생 조건 등에서 **Mock은 통과하지만 프로덕션에서 실패하는 케이스**를 경계할 것.
-- Mock 대상의 실제 시그니처와 반환값을 확인한 뒤 Mock을 작성할 것.
+#### Mock usage guidelines
+- Be aware that mocks/stubs can diverge from real behavior. Watch for cases where **mocks pass but production fails** — especially around automatic type coercion, default value injection, and exception conditions.
+- Verify the actual signature and return values of the mock target before writing the mock.
 
-#### 병렬 테스트 실행
-- 리그레션 테스트, 빌드 브레이크 확인, 테스트 베이스라인 체크 등 **전체 테스트 실행** 시에는 병렬 실행을 기본으로 한다.
-- 상태 공유, DB 의존성, 파일 I/O 경합 등 **병렬 실행에서 문제될 가능성이 있는 테스트는 제외**한다.
-- 병렬 실행에서 실패한 테스트에 한해 **순차 재실행**하여 진짜 실패인지 확인한다.
+#### Parallel test execution
+- Default to **parallel execution** for full test runs (regression, build break checks, baseline verification).
+- **Exclude** tests with shared state, DB dependencies, or file I/O contention from parallel runs.
+- **Re-run failed tests sequentially** to confirm whether they are true failures or parallelism artifacts.
 
 ### Bug Fixing
 - Always reproduce the bug with a failing test FIRST, then fix it.
@@ -97,7 +124,7 @@ Follow this workflow for non-trivial feature/bugfix work (multi-file changes or 
 When the user signals the session is ending (e.g., "done", "wrap up", "that's all"), perform the following in order:
 
 1. **Skill recommendation:** Based on what was covered in this conversation, determine if there are reusable custom skills worth creating for the current project. If so, recommend them to the user.
-2. **Memory update:** Check if `~/.claude/projects/{project_id}/memory/MEMORY.md` needs updates with lessons and decisions from this session.
+2. **Memory update:** Check if the project's auto memory `MEMORY.md` needs updates with lessons and decisions from this session.
 3. **Branch wrap-up:** Use the `finishing-a-development-branch` skill to clean up and merge the branch.
 
 ---
