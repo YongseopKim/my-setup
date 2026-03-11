@@ -4,13 +4,26 @@
 
 A "compound command" is ANY Bash call containing `&&`, `||`, `|`, `;`, or multiple lines. Before every Bash call, verify the command is a single line with none of these operators. If it fails, split into separate Bash tool calls.
 
-### Subagent rule
+### Subagent rule (bash)
 
 This rule applies to ALL subagents. When dispatching Task/Agent, explicitly instruct ALL of the following:
 1. **"Execute exactly ONE shell command per Bash tool call. Never combine commands with &&, ||, |, ;, or newlines."**
 2. **"NEVER use absolute paths to invoke executables or as command arguments. Always `cd` into the project directory first (separate Bash call), then use relative commands like `pip install`, `pytest`, `python`."**
 3. **"NEVER call .venv/bin/* with absolute paths. Instead: (1) cd to project dir, (2) source .venv/bin/activate, (3) run command — each as a separate Bash call."**
-4. **"Use relative paths in arguments: `pip install -e '.[dev]'` NOT `pip install -e '/Users/.../project[dev]'`"**
+4. **"Use relative paths in arguments: `pip install -e '.[dev]'` NOT `pip install -e '/home/.../project[dev]'`"**
+
+---
+
+## ⛔ GIT COMMIT — STAGE FILES EXPLICITLY (NO WILDCARDS)
+
+**NEVER use `git add -A`, `git add .`, or any wildcard/glob pattern.** Always stage files individually by explicit path (e.g., `git add src/foo.py`). Only commit files you created or modified — never blindly stage all changes.
+
+This rule applies to both the main agent and all subagents.
+
+### Subagent rule (commit)
+
+When dispatching Task/Agent, explicitly instruct:
+- **"When committing, NEVER use `git add -A`, `git add .`, or any wildcard/glob pattern. Always stage files individually by explicit path (e.g., `git add src/foo.py`). Only commit files YOU created or modified — never blindly stage all changes."**
 
 ---
 
@@ -34,7 +47,7 @@ If the task does not match any exception above, create a worktree.
 - When running commands in a worktree, **always `cd` into the worktree directory first**, then use relative paths. Never append the worktree path to commands (breaks existing ALLOW patterns).
 - Base work on the original repo's `.venv`.
 
-### Subagent rule
+### Subagent rule (worktree)
 When dispatching subagents, explicitly pass the worktree path and instruct them to **"work only inside the given worktree directory"**.
 
 ---
@@ -44,8 +57,8 @@ When dispatching subagents, explicitly pass the worktree path and instruct them 
 Consider the following when setting up a new project:
 
 ### Service / Process Management
-- If the project involves a server or long-running process, plan for **user-level systemd (Ubuntu) / launchd (macOS)** service registration by default.
-- Keep service definition files (`.service` / `.plist`) and management scripts inside the repo. When registering the service, link directly to these repo scripts.
+- If the project involves a server or long-running process, plan for **user-level systemd** service registration by default.
+- Keep service definition files (`.service`) and management scripts inside the repo. When registering the service, link directly to these repo scripts.
 - If Dockerization is a natural fit, always prefer it.
 
 ### .gitignore Initialization
@@ -92,7 +105,7 @@ When a worktree is created, follow this workflow. For small, isolated changes, s
 
 ### Skill Usage Guidelines
 - **Vague / exploratory requests** (not a specific bug fix or feature): Use the `brainstorming` skill.
-- **Small / focused changes** (single-file bug fix, minor addition): Apply worktree + TDD directly, skip Design/Plan.
+- **Small / focused changes** (single-file bug fix, minor addition): Apply worktree + TDD directly (skip Design/Plan per Development Workflow).
 - **Large feature work**: Follow the Development Workflow above.
 
 ### Plan Parallelism
@@ -100,7 +113,13 @@ When a worktree is created, follow this workflow. For small, isolated changes, s
 - Minimize sequential dependencies to enable concurrent subagent processing.
 - Intentionally place **bottleneck checkpoints** between parallel groups — run tests at these points to verify intermediate results before proceeding to the next phase.
 - **Checkpoint merge rule:** At each checkpoint, merge all task commits within that group using a **merge commit** (no fast-forward). Verify that every task's commit is included in the merge before proceeding to the next phase.
-- Structure plans as: `[Parallel Group A: task1, task2, task3] → Checkpoint: merge + check missing commits + code review + run tests → [Parallel Group B: task4, task5] → Checkpoint: merge + check missing commits + code review + run tests`
+- Structure plans as:
+  ```
+  [Parallel Group A: task1, task2, task3]
+    → Checkpoint: merge + check missing commits + code review + run tests
+  [Parallel Group B: task4, task5]
+    → Checkpoint: merge + check missing commits + code review + run tests
+  ```
 - When dispatching subagents, use the `dispatching-parallel-agents` skill for concurrent execution within each group.
 
 ### Testing Practices
@@ -124,6 +143,7 @@ When a worktree is created, follow this workflow. For small, isolated changes, s
 When the user signals the session is ending (e.g., "done", "wrap up", "that's all"), perform the following in order:
 
 1. **Skill recommendation:** Based on what was covered in this conversation, determine if there are reusable custom skills worth creating for the current project. If so, recommend them to the user.
+   - Criteria: patterns repeated 3+ times, project-specific workflows, complex multi-step tasks
 2. **Memory update:** Check if the project's auto memory `MEMORY.md` needs updates with lessons and decisions from this session.
 3. **Branch wrap-up:** Use the `finishing-a-development-branch` skill to clean up and merge the branch.
 
