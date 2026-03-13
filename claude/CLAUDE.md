@@ -1,29 +1,18 @@
+# Global Claude Code Instructions
+
+> User-wide defaults applied to ALL projects. Project-specific instructions belong in each project's `CLAUDE.md`.
+
 ## ⛔ BASH COMMANDS — ONE COMMAND PER BASH CALL (ZERO EXCEPTIONS)
 
 **ONE Bash tool call = ONE shell command. No exceptions.** This is enforced by a PreToolUse hook that blocks violations.
 
 A "compound command" is ANY Bash call containing `&&`, `||`, `|`, `;`, or multiple lines. Before every Bash call, verify the command is a single line with none of these operators. If it fails, split into separate Bash tool calls.
 
-### Subagent rule (bash)
-
-This rule applies to ALL subagents. When dispatching Task/Agent, explicitly instruct ALL of the following:
-1. **"Execute exactly ONE shell command per Bash tool call. Never combine commands with &&, ||, |, ;, or newlines."**
-2. **"NEVER use absolute paths to invoke executables or as command arguments. Always `cd` into the project directory first (separate Bash call), then use relative commands like `pip install`, `pytest`, `python`."**
-3. **"NEVER call .venv/bin/* with absolute paths. Instead: (1) cd to project dir, (2) source .venv/bin/activate, (3) run command — each as a separate Bash call."**
-4. **"Use relative paths in arguments: `pip install -e '.[dev]'` NOT `pip install -e '/home/.../project[dev]'`"**
-
 ---
 
 ## ⛔ GIT COMMIT — STAGE FILES EXPLICITLY (NO WILDCARDS)
 
 **NEVER use `git add -A`, `git add .`, or any wildcard/glob pattern.** Always stage files individually by explicit path (e.g., `git add src/foo.py`). Only commit files you created or modified — never blindly stage all changes.
-
-This rule applies to both the main agent and all subagents.
-
-### Subagent rule (commit)
-
-When dispatching Task/Agent, explicitly instruct:
-- **"When committing, NEVER use `git add -A`, `git add .`, or any wildcard/glob pattern. Always stage files individually by explicit path (e.g., `git add src/foo.py`). Only commit files YOU created or modified — never blindly stage all changes."**
 
 ---
 
@@ -47,14 +36,11 @@ If the task does not match any exception above, create a worktree.
 - When running commands in a worktree, **always `cd` into the worktree directory first**, then use relative paths. Never append the worktree path to commands (breaks existing ALLOW patterns).
 - Base work on the original repo's `.venv`.
 
-### Subagent rule (worktree)
-When dispatching subagents, explicitly pass the worktree path and instruct them to **"work only inside the given worktree directory"**.
-
 ---
 
-## Project Setup
+## New Project Initialization Defaults
 
-Consider the following when setting up a new project:
+When setting up a new project, apply these defaults:
 
 ### Service / Process Management
 - If the project involves a server or long-running process, plan for **user-level systemd** service registration by default.
@@ -74,7 +60,7 @@ Include the following in `.gitignore` at project creation:
 
 ## Session Start
 
-1. If `.venv/` exists in the project root, run `source .venv/bin/activate` as a standalone Bash call before running the first shell command. All subsequent commands run in the activated environment.
+1. If `.venv/` exists in the project root, run executables via relative paths: `.venv/bin/python`, `.venv/bin/pip`, `.venv/bin/pytest`. (`source .venv/bin/activate` has no effect in Claude Code since shell state does not persist across Bash calls.)
 2. On the first user message, read the project's auto memory `MEMORY.md` to restore decisions and lessons from previous sessions. If it does not exist, create it.
 3. Upon receiving a work request, run `git branch --show-current` before modifying any code. If on main and the task does not match a Worktree exception (see above), create a worktree first using the `using-git-worktrees` skill.
 
@@ -146,6 +132,16 @@ When the user signals the session is ending (e.g., "done", "wrap up", "that's al
    - Criteria: patterns repeated 3+ times, project-specific workflows, complex multi-step tasks
 2. **Memory update:** Check if the project's auto memory `MEMORY.md` needs updates with lessons and decisions from this session.
 3. **Branch wrap-up:** Use the `finishing-a-development-branch` skill to clean up and merge the branch.
+
+---
+
+## Subagent Rules (All Dispatched Agents)
+
+When dispatching Task/Agent, ALWAYS include these instructions:
+1. **Bash:** "Execute exactly ONE shell command per Bash tool call. Never combine with &&, ||, |, ;, or newlines."
+2. **Paths:** "NEVER use absolute paths. `cd` into the project directory first, then use relative paths (`.venv/bin/python`, `.venv/bin/pip`)."
+3. **Git:** "NEVER use `git add -A`, `git add .`, or wildcards. Stage files individually by explicit path."
+4. **Worktree:** Pass the worktree path and instruct: "Work only inside the given worktree directory."
 
 ---
 
