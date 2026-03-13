@@ -66,8 +66,14 @@ def strip_quotes(cmd: str) -> str:
 # Pattern 0: 복합 커맨드 차단 (&&, ||, |, ;, 멀티라인)
 stripped = strip_quotes(command)
 
+# 멀티라인 허용 패턴: git + HEREDOC (git commit -m "$(cat <<'EOF' ...)")
+def is_git_heredoc(cmd: str) -> bool:
+    """git 커맨드가 HEREDOC으로 멀티라인 인자를 전달하는 패턴인지 확인."""
+    first_token = cmd.strip().split()[0] if cmd.strip() else ""
+    return first_token == "git" and "<<" in cmd
+
 # 멀티라인 체크
-if "\n" in command.strip():
+if "\n" in command.strip() and not is_git_heredoc(command):
     print(
         "BLOCKED: 멀티라인 커맨드는 허용되지 않습니다. "
         "각 명령을 별도의 Bash tool call로 분리하세요.",
