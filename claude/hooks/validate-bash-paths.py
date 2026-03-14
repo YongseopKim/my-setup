@@ -26,7 +26,7 @@ PIPE_SAFE_COMMANDS = {
     "git",
     # 개발 도구
     "pip", "pytest", "ruff",
-    ".venv/bin/pip", ".venv/bin/pytest",
+    ".venv/bin/pip", ".venv/bin/pytest", ".venv/bin/python",
     # 컨테이너
     "docker",
     # 기타
@@ -37,13 +37,19 @@ PIPE_SAFE_COMMANDS = {
 def get_command_name(segment: str) -> str:
     """파이프 세그먼트에서 커맨드명을 추출한다.
 
+    환경변수 할당(VAR=VALUE)을 건너뛰고 실제 커맨드명을 반환한다.
     예: "  git log --oneline" -> "git"
         ".venv/bin/pip list" -> ".venv/bin/pip"
+        "PYTHONPATH=src:. .venv/bin/python -m foo" -> ".venv/bin/python"
     """
     tokens = segment.strip().split()
     if not tokens:
         return ""
-    return tokens[0]
+    for token in tokens:
+        if re.match(r"[A-Za-z_][A-Za-z0-9_]*=", token):
+            continue
+        return token
+    return ""
 
 try:
     input_data = json.load(sys.stdin)
