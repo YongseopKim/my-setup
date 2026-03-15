@@ -130,15 +130,34 @@ if re.search(r"(?:/Users|/home)/\S+/\.venv/bin/\S+", command):
     )
     sys.exit(2)
 
-# Pattern 2: 명령어 인자에 절대 프로젝트 경로를 포함하여 호출
+# Pattern 2: 명령어 인자에 절대 프로젝트 경로를 포함하여 호출 (따옴표 유무 무관)
 # 예: pip install -e "/Users/dragon/github/project[dev]"
-# 예: pip install -e "/home/dragon/mywork/project[dev]"
-if re.search(r'(?:pip\s+install|python|pytest)\s+.*"(?:/Users|/home)/\S+', command):
+# 예: pytest /home/dragon/mywork/project/tests/test_foo.py
+# 예: .venv/bin/python -m pytest /home/dragon/mywork/project/tests/test_foo.py
+# ※ 커맨드명 자체의 경로(Pattern 1에서 처리)는 제외하고, 인자 부분만 검사
+_ABS_PROJECT_PATH = r"(?:/Users|/home)/\S+/\S+/\S+"  # depth 3+: /home/user/project/...
+_CMD_PREFIX = r"(?:pip\s+install|python|pytest|\.venv/bin/python|\.venv/bin/pytest)"
+if re.search(rf"{_CMD_PREFIX}\s+.*{_ABS_PROJECT_PATH}", command):
     print(
         "BLOCKED: 명령어 인자에 절대 경로를 사용하지 마세요. "
         "먼저 별도의 Bash call로 'cd <project_dir>'을 실행한 후, "
         "상대 경로를 사용하세요. "
-        "예: pip install -e '.[dev]' (절대 경로 대신 상대 경로 사용). "
+        "예: pytest tests/test_foo.py (절대 경로 대신 상대 경로 사용). "
+        "각 명령은 반드시 별도의 Bash tool call로 실행해야 합니다.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+
+# Pattern 3: 환경변수 값에 절대 프로젝트 경로 포함
+# 예: PYTHONPATH=/home/dragon/mywork/project/src .venv/bin/python -m pytest
+# ※ HOME=/home/dragon 같은 단순 경로(depth 2)는 허용
+_ENV_ABS_PATH = r"[A-Za-z_][A-Za-z0-9_]*=(?:/Users|/home)/\S+/\S+/\S+"
+if re.search(_ENV_ABS_PATH, command):
+    print(
+        "BLOCKED: 환경변수에 절대 프로젝트 경로를 사용하지 마세요. "
+        "먼저 별도의 Bash call로 'cd <project_dir>'을 실행한 후, "
+        "상대 경로를 사용하세요. "
+        "예: PYTHONPATH=src .venv/bin/python (절대 경로 대신 상대 경로 사용). "
         "각 명령은 반드시 별도의 Bash tool call로 실행해야 합니다.",
         file=sys.stderr,
     )
