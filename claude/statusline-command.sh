@@ -5,6 +5,7 @@ input=$(cat)
 cwd=$(echo "$input" | jq -r '.cwd // .workspace.current_dir // ""')
 model=$(echo "$input" | jq -r '.model.display_name // ""')
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
+cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
 
 # ── ANSI bright colors (using $'...' for real escape bytes) ──
 BG=$'\e[92m'        # bright green
@@ -12,6 +13,7 @@ BY=$'\e[93m'        # bright yellow
 BR=$'\e[91m'        # bright red
 BM=$'\e[95m'        # bright magenta
 BB=$'\e[94m'        # bright blue
+BC=$'\e[96m'        # bright cyan
 DIM=$'\e[2m'
 RST=$'\e[0m'
 
@@ -89,8 +91,15 @@ fi
 # ── Model ──
 model_part=""
 if [ -n "$model" ]; then
-  model_part="${DIM}│${RST} ${BB}⚡ ${model}${RST} ${DIM}│${RST}"
+  model_part="${DIM}│${RST} ${BB}⚡ ${model}${RST} "
+fi
+
+# ── Cost ──
+cost_part=""
+if [ -n "$cost" ]; then
+  cost_fmt=$(printf "%.2f" "$cost")
+  cost_part="${DIM}│${RST} ${BC}💰 \$${cost_fmt}${RST} "
 fi
 
 # ── Assemble ──
-printf "%s" "${BG}📂 ${short_cwd}${RST} ${git_info}${ctx_part}${model_part}"
+printf "%s" "${BG}📂 ${short_cwd}${RST} ${git_info}${ctx_part}${model_part}${cost_part}${DIM}│${RST}"
