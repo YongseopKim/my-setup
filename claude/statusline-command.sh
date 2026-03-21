@@ -1,24 +1,21 @@
 #!/usr/bin/env bash
-# Claude Code statusLine command — Unicode icons + actual ANSI escape bytes
+# Claude Code statusLine command
 
 input=$(cat)
 cwd=$(echo "$input" | jq -r '.cwd // .workspace.current_dir // ""')
-model=$(echo "$input" | jq -r '.model.display_name // ""')
 used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
-cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
+five_h_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+seven_d_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 
-# ── ANSI bright colors (using $'...' for real escape bytes) ──
-BG=$'\e[92m'        # bright green
-BY=$'\e[93m'        # bright yellow
-BR=$'\e[91m'        # bright red
+# ── ANSI bright colors ──
 BM=$'\e[95m'        # bright magenta
 BB=$'\e[94m'        # bright blue
 BC=$'\e[96m'        # bright cyan
+BW=$'\e[97m'        # bright white
 DIM=$'\e[2m'
 RST=$'\e[0m'
 
 # ── Fish-style path shortening ──
-# ~/github/YongseopKim/pkb/src/core/utils → ~/g/Y/p/s/c/utils
 fish_shorten_path() {
   local p="${1/#$HOME/\~}"
   local IFS='/'
@@ -50,7 +47,6 @@ if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
     else
       dirty=""
     fi
-    # Shorten branch: strip common prefixes, cap at 25 chars
     branch="${branch#feature/}"
     branch="${branch#bugfix/}"
     branch="${branch#hotfix/}"
@@ -63,43 +59,47 @@ if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
   fi
 fi
 
-# ── Context usage with warning levels ──
+# ── Context usage (percentage only, colored) ──
 ctx_part=""
 if [ -n "$used_pct" ]; then
   used_int=$(printf "%.0f" "$used_pct")
-
-  filled=$((used_int / 10))
-  empty=$((10 - filled))
-  bar=""
-  for ((i=0; i<filled; i++)); do bar+="▓"; done
-  for ((i=0; i<empty; i++)); do bar+="░"; done
-
   if [ "$used_int" -lt 50 ]; then
-    ctx_color="${BG}"
     ctx_icon="🟢"
   elif [ "$used_int" -lt 80 ]; then
-    ctx_color="${BY}"
     ctx_icon="🟡"
   else
-    ctx_color="${BR}"
     ctx_icon="🔴"
   fi
-
-  ctx_part="${DIM}│${RST} ${ctx_color}${ctx_icon} ${bar} ${used_int}%${RST} "
+  ctx_part="${DIM}│${RST} ${BW}💬 ${used_int}%${ctx_icon}${RST} "
 fi
 
-# ── Model ──
-model_part=""
-if [ -n "$model" ]; then
-  model_part="${DIM}│${RST} ${BB}⚡ ${model}${RST} "
+# ── Plan usage: 5h / 7d (colored) ──
+plan_part=""
+if [ -n "$five_h_pct" ] && [ -n "$seven_d_pct" ]; then
+  fh_int=$(printf "%.0f" "$five_h_pct")
+  sd_int=$(printf "%.0f" "$seven_d_pct")
+  if [ "$fh_int" -lt 50 ]; then fh_icon="🟢"; elif [ "$fh_int" -lt 80 ]; then fh_icon="🟡"; else fh_icon="🔴"; fi
+  if [ "$sd_int" -lt 50 ]; then sd_icon="🟢"; elif [ "$sd_int" -lt 80 ]; then sd_icon="🟡"; else sd_icon="🔴"; fi
+  plan_part="${DIM}│${RST} ${BW}⏳ 5h ${fh_int}%${fh_icon} 7d ${sd_int}%${sd_icon}${RST} "
 fi
 
-# ── Cost ──
-cost_part=""
-if [ -n "$cost" ]; then
-  cost_fmt=$(printf "%.2f" "$cost")
-  cost_part="${DIM}│${RST} ${BC}💰 \$${cost_fmt}${RST} "
+# ── LLM Proxy cost (D/W/T) — hidden if server unreachable ──
+proxy_part=""
+PROXY_URL="http://localhost:8081"
+today_start=$(date -u +%Y-%m-%dT00:00:00Z)
+week_start=$(date -u -d 'last sunday' +%Y-%m-%dT00:00:00Z)
+today_json=$(curl -s --connect-timeout 1 --max-time 2 "${PROXY_URL}/v1/usage/summary?start=${today_start}" 2>/dev/null)
+if [ -n "$today_json" ] && echo "$today_json" | jq -e '.total_cost_usd' >/dev/null 2>&1; then
+  week_json=$(curl -s --connect-timeout 1 --max-time 2 "${PROXY_URL}/v1/usage/summary?start=${week_start}" 2>/dev/null)
+  total_json=$(curl -s --connect-timeout 1 --max-time 2 "${PROXY_URL}/v1/usage/summary" 2>/dev/null)
+  d_cost=$(echo "$today_json" | jq -r '.total_cost_usd // 0')
+  w_cost=$(echo "$week_json" | jq -r '.total_cost_usd // 0')
+  t_cost=$(echo "$total_json" | jq -r '.total_cost_usd // 0')
+  d_fmt=$(printf "%.1f" "$d_cost")
+  w_fmt=$(printf "%.1f" "$w_cost")
+  t_fmt=$(printf "%.1f" "$t_cost")
+  proxy_part="${DIM}│${RST} ${BB}💰 D:\$${d_fmt} W:\$${w_fmt} T:\$${t_fmt}${RST} "
 fi
 
 # ── Assemble ──
-printf "%s" "${BG}📂 ${short_cwd}${RST} ${git_info}${ctx_part}${model_part}${cost_part}${DIM}│${RST}"
+printf "%s" "${BC}📂 ${short_cwd}${RST} ${git_info}${ctx_part}${plan_part}${proxy_part}${DIM}│${RST}"

@@ -1,6 +1,6 @@
 # Global Claude Code Instructions
 
-> User-wide defaults applied to ALL projects. Project-specific instructions belong in each project's `CLAUDE.md`.
+> User-wide defaults applied to ALL projects. Project-specific instructions belong in each project's `CLAUDE.md`. Personal overrides go in `.claude.local.md` (gitignored).
 
 ## ⛔ BASH COMMANDS — ONE COMMAND PER BASH CALL (ZERO EXCEPTIONS)
 
@@ -9,6 +9,8 @@
 A "compound command" is ANY Bash call containing `&&`, `||`, `|`, `;`, or multiple lines. Before every Bash call, verify the command is a single line with none of these operators. If it fails, split into separate Bash tool calls. Note: redirections like `2>&1` are NOT compound operators and are allowed.
 
 **Never prefix commands with inline env vars** (e.g., `PYTHONPATH=src cmd`). Inline env vars change the command prefix and break `settings.json` allow-pattern matching. Configure env vars in project config files instead.
+
+**If the PreToolUse hook blocks a command:** The command is compound. Split it into separate Bash tool calls (one per operator). Do NOT bypass the hook.
 
 ---
 
@@ -39,11 +41,15 @@ If the task does not match any exception above, create a worktree.
 - When running commands in a worktree, **always `cd` into the worktree directory first**, then use relative paths. Never append the worktree path to commands (breaks existing ALLOW patterns).
 - If the original repo has a `.venv/`, **symlink it into the worktree** (e.g., `ln -s ../../.venv .venv`) so that `.venv/bin/*` commands work with existing allow patterns.
 
+### Worktree troubleshooting
+- **Creation fails:** Run `git worktree list` to check existing worktrees. Clean stale entries with `git worktree prune`.
+- **`.venv` symlink:** Use absolute path to the main repo's `.venv` (e.g., `ln -s /absolute/path/to/repo/.venv .venv`) if relative-path depth varies.
+
 ---
 
-## Communication
+## ⚠️ COMMUNICATION
 
-If you believe the user's statement is incorrect, say so with your reasoning. The user values honest disagreement over blind agreement.
+**Disagree honestly.** If you believe the user's statement is incorrect, say so with your reasoning. The user values honest disagreement over blind agreement.
 
 ---
 
@@ -69,7 +75,7 @@ If you believe the user's statement is incorrect, say so with your reasoning. Th
 ### Steps
 
 1. **Setup:** Install dependencies if needed.
-2. **Design:** Design → Validate → If invalid, redesign → Design complete
+2. **Design:** Use `brainstorming` skill → Present design to user for approval → If rejected, redesign → Design approved
 3. **Plan:** Use `writing-plans` skill — maximize parallelism with bottleneck checkpoints for testing → Validate → If invalid, replan → Plan complete
 4. **Implement:**
    - Before each task, analyze whether the change could cause **side effects** on other modules or features.
@@ -88,20 +94,32 @@ If you believe the user's statement is incorrect, say so with your reasoning. Th
 - When encountering mistakes likely to recur, important architectural decisions, or troubleshooting lessons, update `MEMORY.md` immediately.
 
 ### Skill Usage Guidelines
-- **Vague / exploratory requests**: Use the `brainstorming` skill.
-- **Small changes**: See "Small vs Large" above.
+
+| Situation | Skill | When |
+|-----------|-------|------|
+| Vague / exploratory request | `brainstorming` | Before any implementation |
+| Bug or unexpected behavior | `systematic-debugging` | Before proposing a fix |
+| Any implementation | `test-driven-development` | Before writing production code |
+| Multi-step task planning | `writing-plans` | After design approval |
+| Plan execution | `executing-plans` | When executing an approved plan |
+| 2+ independent tasks | `dispatching-parallel-agents` | Within parallel groups |
+| Milestone or checkpoint | `requesting-code-review` | At checkpoints, not every commit |
+| Claiming work is done | `verification-before-completion` | Before any completion claim |
+| Implementation complete | `finishing-a-development-branch` | After all tests pass |
+
+- **Small changes**: Skip Design/Plan. Apply TDD directly.
 - **Large feature work**: Follow the full Development Workflow.
 
 ### Plan Parallelism (Large path only)
 - Break down tasks to **maximize parallel execution**. Minimize sequential dependencies.
 - Place **bottleneck checkpoints** between parallel groups — run tests at these points before proceeding.
-- **Checkpoint merge rule:** At each checkpoint, merge all task commits within that group using a **merge commit** (no fast-forward). Verify that every task's commit is included before proceeding.
+- **Git structure:** Each parallel agent works in its own **isolated worktree**. At checkpoint, merge all agent worktrees into the feature (or main) branch using **merge commits** (`--no-ff`). Verify that every task's commit is included before proceeding.
 - Structure plans as:
   ```
-  [Parallel Group A: task1, task2, task3]
-    → Checkpoint: merge + check missing commits + code review + run tests
-  [Parallel Group B: task4, task5]
-    → Checkpoint: merge + check missing commits + code review + run tests
+  [Parallel Group A: task1, task2, task3]  ← each in separate worktree
+    → Checkpoint: merge all into feature/main branch + verify commits + code review + run tests
+  [Parallel Group B: task4, task5]  ← each in separate worktree
+    → Checkpoint: merge all into feature/main branch + verify commits + code review + run tests
   ```
 - Use `dispatching-parallel-agents` skill for concurrent execution within each group.
 
@@ -128,6 +146,7 @@ When the user **explicitly signals the session is ending** (e.g., "let's wrap up
 
 1. **Skill recommendation:** Determine if there are reusable custom skills worth creating for the current project.
    - Criteria: patterns repeated 3+ times, project-specific workflows, complex multi-step tasks
+   - Reference: Read `references/skill-writing-guide.md` for skill types, best practices, and distribution strategies
 2. **Memory update:** Check if `MEMORY.md` needs updates with lessons and decisions from this session.
 3. **Branch wrap-up:** Use the `finishing-a-development-branch` skill to clean up and merge.
 
