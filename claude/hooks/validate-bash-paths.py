@@ -5,6 +5,7 @@ PreToolUse hook for Bash commands:
 2. 파이프(|)는 모든 세그먼트가 화이트리스트에 있으면 허용
 3. 절대 경로로 .venv 실행파일 직접 호출 차단
 4. 명령어 인자에 절대 프로젝트 경로 포함 차단
+5. 전용 도구가 있는 명령어(find, grep, rg 등)를 Bash로 실행 시 차단
 
 차단 시 stderr로 올바른 사용법을 안내하여 agent가 자동으로 재시도하게 합니다.
 """
@@ -113,6 +114,27 @@ if pipe_match:
             f"BLOCKED: 파이프 체인에 허용되지 않은 커맨드가 포함되어 있습니다: {blocked_cmds}. "
             "파이프는 화이트리스트에 등록된 커맨드끼리만 사용할 수 있습니다. "
             "각 명령을 별도의 Bash tool call로 분리하세요.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+# Pattern 0.5: 전용 도구가 있는 명령어를 Bash로 실행 시 차단
+# find → Glob 도구, grep/rg → Grep 도구, cat/head/tail → Read 도구
+# 파이프 체인의 일부로 사용되는 경우는 위의 파이프 체크에서 이미 처리됨
+TOOL_REPLACEABLE_COMMANDS = {
+    "find": "Glob 도구를 사용하세요. 예: Glob(pattern='**/*.py')",
+    "grep": "Grep 도구를 사용하세요. 예: Grep(pattern='TODO', glob='*.py')",
+    "rg": "Grep 도구를 사용하세요. 예: Grep(pattern='TODO', glob='*.py')",
+}
+
+if not pipe_match:
+    primary_cmd = get_command_name(stripped)
+    if primary_cmd in TOOL_REPLACEABLE_COMMANDS:
+        suggestion = TOOL_REPLACEABLE_COMMANDS[primary_cmd]
+        print(
+            f"BLOCKED: '{primary_cmd}' 대신 전용 도구를 사용하세요. "
+            f"{suggestion} "
+            "전용 도구는 더 안전하고 권한 프롬프트 없이 실행됩니다.",
             file=sys.stderr,
         )
         sys.exit(2)
